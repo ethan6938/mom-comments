@@ -1,8 +1,9 @@
 {
-  "name": "mom-comment",
+  "name": "mom-comments",
   "version": "1.0.0",
+  "private": true,
   "type": "module",
   "dependencies": {
-    "mongodb": "^6.16.0"
+    "mongodb": "^6.6.2"
   }
 }

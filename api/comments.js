@@ -3,23 +3,29 @@ import { MongoClient } from "mongodb";
 const uri = process.env.MONGODB_URI;
 const dbName = process.env.MONGODB_DB || "birthday_app";
 
-let client;
 let clientPromise;
 
-if (!uri) {
-  throw new Error("Missing MONGODB_URI environment variable");
-}
+function getClientPromise() {
+  if (!uri) return null;
 
-if (!global._mongoClientPromise) {
-  client = new MongoClient(uri);
-  global._mongoClientPromise = client.connect();
-}
+  if (!clientPromise) {
+    const client = new MongoClient(uri);
+    clientPromise = client.connect();
+  }
 
-clientPromise = global._mongoClientPromise;
+  return clientPromise;
+}
 
 export default async function handler(req, res) {
   try {
-    const client = await clientPromise;
+    if (!uri) {
+      return res.status(500).json({
+        error: "Missing MONGODB_URI environment variable in Vercel"
+      });
+    }
+
+    const promise = getClientPromise();
+    const client = await promise;
     const db = client.db(dbName);
     const comments = db.collection("comments");
 
@@ -33,7 +39,11 @@ export default async function handler(req, res) {
     }
 
     if (req.method === "POST") {
-      const { name, message } = req.body || {};
+      const body =
+        typeof req.body === "string" ? JSON.parse(req.body) : req.body || {};
+
+      const name = String(body.name || "").trim();
+      const message = String(body.message || "").trim();
 
       if (!name || !message) {
         return res.status(400).json({
@@ -42,17 +52,20 @@ export default async function handler(req, res) {
       }
 
       await comments.insertOne({
-        name: String(name).trim(),
-        message: String(message).trim(),
+        name,
+        message,
         createdAt: new Date()
       });
 
       return res.status(201).json({ success: true });
     }
 
+    res.setHeader("Allow", "GET, POST");
     return res.status(405).json({ error: "Method not allowed" });
   } catch (error) {
     console.error("API error:", error);
-    return res.status(500).json({ error: "Server error" });
+    return res.status(500).json({
+      error: error.message || "Server error"
+    });
   }
 }
